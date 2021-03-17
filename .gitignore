@@ -11,6 +11,7 @@
 
 # Virtualenv
 /env
+/gym_env/
 
 # Python egg metadata, regenerated from source files by setuptools.
 /*.egg-info
@@ -37,3 +38,7 @@ tutorial/*.html
 # PyCharm project files
 .idea
 vizdoom.ini
+
+# Personal scratch/debug files
+debug.py
+pong-from-pixels.py
