@@ -2,9 +2,21 @@
 import numpy as np
 from PIL import Image
 
+def discount_rewards(rewards, gamma) -> np.ndarray:
+    G = rewards[-1]
+    for i in range(len(rewards) - 2, -1, -1):
+        G.append(rewards[i] + gamma*rewards[i+1] )
+    G = list(reversed(G))
+    G = np.array(G)
+    return G
+
+def make_grad_buffer(*variables):
+    return [np.zeros(v.shape) for v in variables]
+
 def preprocess(observation: np.ndarray) -> np.ndarray:
     observation = trim(observation)
     observation = to_grayscale(observation)
+    observation = np.squeeze(observation.flatten())
     return observation
 
 def trim(observation: np.ndarray) -> np.ndarray:
