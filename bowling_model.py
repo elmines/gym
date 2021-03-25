@@ -3,7 +3,7 @@ import numpy as np
 from PIL import Image
 
 def discount_rewards(rewards, gamma) -> np.ndarray:
-    G = rewards[-1]
+    G = [rewards[-1]]
     for i in range(len(rewards) - 2, -1, -1):
         G.append(rewards[i] + gamma*rewards[i+1] )
     G = list(reversed(G))
@@ -32,5 +32,12 @@ def display(observation: np.ndarray):
     if observation.shape[-1] != 3:
         observation = np.stack([observation] * 3, axis=-1)
     Image.fromarray(observation).show()
+
+def make_random_baseline(seed = 0):
+    rng = np.random.default_rng()
+    def f(s):
+        s = np.squeeze(np.array(s))
+        return rng.standard_normal(len(s))
+    return f
 
 __all__ = ["preprocess", "trim", "to_grayscale", "display"]

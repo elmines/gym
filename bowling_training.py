@@ -7,13 +7,17 @@ import numpy as np
 import tensorflow as tf
 from PIL import Image
 # Local
-from bowling_model import preprocess, to_grayscale, make_grad_buffer, discount_rewards
+from bowling_model import preprocess, to_grayscale, make_grad_buffer
+from bowling_model import discount_rewards, make_random_baseline
+
+np.random.seed(0)
 
 env = gym.make("Bowling-v0")
 observation = env.reset()
 observation = preprocess(observation)
 
 render = False
+MAX_STEPS = 200
 ACTION_NAMES = ["NOOP", "FIRE", "UP", "DOWN"]
 ACTION_DICT = {
     0: 0,
@@ -23,10 +27,11 @@ ACTION_DICT = {
 }
 NUM_ACTIONS = len(ACTION_NAMES)
 # Hyperparameters
-batch_size = 10
-learning_rate = 1e-3
-gamma = 0.99
-baseline_func = lambda s: 0
+max_batches     = 2
+batch_size      = 2
+learning_rate   = 1e-3
+gamma           = 0.99
+baseline_func   = make_random_baseline(seed = 0)
 
 model = tf.keras.Sequential([
     tf.keras.layers.InputLayer(input_shape=observation.shape),
@@ -39,50 +44,47 @@ model = tf.keras.Sequential([
 
 
 ################## Training Loop ######################
-grad_buffer                                    = []
-ep_baselines  : List[float]                    = []
-ep_rewards    : List[float]                    = []
-advantages                                     = []
-ep_number                                      = 1
+advantages = []
+grad_buffer   : List[tf.Tensor]                = []
+obs_history   : List[object]                   = []
+rew_history   : List[float]                    = []
+ep_number     : int                            = 1
+t             : int                            = 1
 obs                                            = env.reset()
-max_episodes                                   = 2
 finished_training                              = False
+print(f"Episode {ep_number}")
 while not finished_training:
     if render: env.render()
-    preproc_obs = tf.constant(preprocess(obs))
-    preproc_obs = tf.expand_dims(preproc_obs, axis=0) # Keras requires a batch dimension
+    preproc_obs = preprocess(obs)
     # Compute gradients for updating later
     with tf.GradientTape() as tape:
-        aprobs       = tf.squeeze(model(preproc_obs))
+        aprobs       = tf.squeeze(model(tf.expand_dims(preproc_obs, axis=0)))
         action_index = np.random.choice(range(NUM_ACTIONS), p=aprobs)
         action_prob  = aprobs[action_index]
         raw_gradient = tape.gradient(tf.math.log(action_prob), model.trainable_variables)
     # Take actual action
-    old_obs = obs
     action = ACTION_DICT[action_index]
     obs, reward, done, _ = env.step(action)
     # Track history for later network updates
-    ep_baselines.append(baseline_func(old_obs))
-    ep_rewards.append(reward)
+    obs_history.append(preproc_obs)
+    rew_history.append(reward)
     grad_buffer.append(raw_gradient)
     # Perform update
-    if done:
-        drewards      = discount_rewards(ep_rewards, gamma)
-        ep_advantages = drewards - np.array(ep_baselines)
-        advantages.extend(ep_advantages)
-
+    if done or (t >= MAX_STEPS):
+        advantages.extend(discount_rewards(rew_history, gamma=gamma) - baseline_func(obs_history))
+        rew_history = []
+        obs_history = []
         # Update model parameters
         if ep_number % batch_size == 0:
-            advantages = np.array(advantages)
-            for (adv, grad) in zip(advantages, grad_buffer):
+            for (adv, grad) in zip( np.array(advantages), grad_buffer):
                 for (v, v_inc) in zip(model.trainable_variables, grad):
-                    v.assign_add(adv*grad)
-            # Update batch-wise variables
-            grad_buffer = []
-            advantages  = []
-        
+                    v.assign_add(adv*v_inc)
         # Update episodal variables
+        t              = 1
         ep_number     += 1
-        ep_baselines   = []
-        if ep_number > max_episodes:
+        if ep_number > batch_size*max_batches:
             finished_training = True
+        else:
+            print(f"Episode {ep_number}")
+    else:
+        t += 1
