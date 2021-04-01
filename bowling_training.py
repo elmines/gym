@@ -34,10 +34,10 @@ learning_rate   = 1e-3
 gamma           = 0.99
 max_steps       = 500
 ### Scheduled Hyperparameters
-thresholds       = np.array([0., 50., 100.])
-max_steps_schedule      = np.array([500, 500, 500], dtype=np.int32)
-noise_func             = make_uniform_noise_func(NUM_ACTIONS)
-noise_schedule         = np.array([0.5, 0.25, 0.1])
+thresholds           = np.array([0., 1., 2., 3., 50., 100.])
+max_steps_schedule   = np.array([500, 500, 500, 500, 500, 500], dtype=np.int32)
+noise_schedule       = np.array([0.5, 0.4, 0.3, 0.2, 0.1, 0.05])
+noise_func           = make_uniform_noise_func(NUM_ACTIONS)
 def select_schedule_item(score, schedule, thresholds):
     assert len(schedule) == len(thresholds)
     return schedule[ np.max( (score >= thresholds)*np.arange(len(thresholds))) ]
