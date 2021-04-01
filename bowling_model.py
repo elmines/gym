@@ -33,11 +33,15 @@ def display(observation: np.ndarray):
         observation = np.stack([observation] * 3, axis=-1)
     Image.fromarray(observation).show()
 
+def make_uniform_noise_func(num_choices):
+    arr = np.array(num_choices * [1./num_choices])
+    return lambda: arr
+
 def make_random_baseline(seed = 0):
     rng = np.random.default_rng()
     def f(s):
         s = np.squeeze(np.array(s))
-        return rng.standard_normal(len(s))
+        return rng.uniform(-25, 25, len(s))
     return f
 
 __all__ = ["preprocess", "trim", "to_grayscale", "display"]
