@@ -5,7 +5,7 @@ def make_uniform_noise_func(num_choices):
     return lambda: arr
 
 def make_random_baseline(seed = 0):
-    rng = np.random.default_rng()
+    rng = np.random.default_rng(seed)
     def f(s):
         s = np.squeeze(np.array(s))
         return rng.uniform(-25, 25, len(s))

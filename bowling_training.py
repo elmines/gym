@@ -12,31 +12,30 @@ from bowling import make_random_baseline, make_uniform_noise_func, select_schedu
 from bowling import ACTION_NAMES, ACTION_DICT, NUM_ACTIONS
 
 def train(
-    model              : tf.keras.Model,
-    max_batches        : int             = 10,
-    batch_size         : int             = 1,
-    learning_rate      : float           = 1e-3,
-    gamma              : float           = 0.99,
-    render             : bool            = False,
-    seed               : int             = 0,
-    score_thresholds   : List[float]     = [0., 1., 2., 3., 50., 100.],
-    max_steps_schedule : List[int]       = [500, 500, 500, 500, 500, 500],
-    noise_schedule     : List[float]     = [0.5, 0.4, 0.3, 0.2, 0.1, 0.05],
+    model                 : tf.keras.Model,
+    max_batches           : int             = 10,
+    batch_size            : int             = 1,
+    lr                    : float           = 1e-2,
+    gamma                 : float           = 0.99,
+    render                : bool            = False,
+    seed                  : int             = 0,
+    schedule_thresholds   : List[float]     = [0., 1., 3., 6., 50., 100.],
+    lr_schedule           : List[float]     = [0.1, 0.1, 0.1, 0.01, 0.01, 0.001],
+    max_steps_schedule    : List[int]       = [500, 500, 500, 500, 500, 500],
+    noise_schedule        : List[float]     = [0.5, 0.5, 0.5, 0.5, 0.1, 0.05],
     noise_func                           = None):
 
-    score_thresholds = np.array(score_thresholds, dtype=np.float32)
+    schedule_thresholds   = np.array(schedule_thresholds, dtype=np.float32)
     max_steps_schedule = np.array(max_steps_schedule, dtype=np.float32)
-    noise_schedule = np.array(noise_schedule, dtype=np.float32)
-    np.random.seed(seed)
+    noise_schedule     = np.array(noise_schedule, dtype=np.float32)
+
+    noise_weight       = select_schedule_item(0, noise_schedule, schedule_thresholds)
+    max_steps          = select_schedule_item(0, max_steps_schedule, schedule_thresholds)
+    lr                 = select_schedule_item(0, lr_schedule, schedule_thresholds)
 
     if not noise_func:
         noise_func = make_uniform_noise_func(NUM_ACTIONS)
-    ### Scheduled Hyperparameters
-    thresholds           = np.array([0., 1., 2., 3., 50., 100.])
-    max_steps_schedule   = np.array([500, 500, 500, 500, 500, 500], dtype=np.int32)
-    noise_schedule       = np.array([0.5, 0.4, 0.3, 0.2, 0.1, 0.05])
-    noise_weight  = select_schedule_item(0, noise_schedule, thresholds)
-    max_steps     = select_schedule_item(0, max_steps_schedule, thresholds)
+    action_rng         = np.random.default_rng(seed)
 
 
 
@@ -58,7 +57,7 @@ def train(
             aprobs       = tf.squeeze(model(tf.expand_dims(preproc_obs, axis=0)))
             aprobs = (1-noise_weight)*aprobs + noise_weight*noise_func()
             try:
-                action_index = np.random.choice(range(NUM_ACTIONS), p=aprobs)
+                action_index = action_rng.choice(range(NUM_ACTIONS), p=aprobs)
             except ValueError as err:
                 if str(err) != "probabilities do not sum to 1": raise err
                 action_index = np.argmax(aprobs)
@@ -81,14 +80,15 @@ def train(
             if ep_number % batch_size == 0:
                 for (adv, grad) in zip(np.array(advantages), grad_buffer):
                     for (v, v_inc) in zip(model.trainable_variables, grad):
-                        v.assign_add(adv*v_inc)
+                        v.assign_add(lr*adv*v_inc)
                 advantages = []
                 grad_buffer = []
 
             print(f"Episode {ep_number} finished. Score = {bowling_score}")
             # Update schedule variables
-            noise     = select_schedule_item(bowling_score, noise_schedule, thresholds)
-            max_steps = select_schedule_item(bowling_score, max_steps_schedule, thresholds)
+            noise     = select_schedule_item(bowling_score, noise_schedule, schedule_thresholds)
+            max_steps = select_schedule_item(bowling_score, max_steps_schedule, schedule_thresholds)
+            lr        = select_schedule_item(bowling_score, lr_schedule, schedule_thresholds)
 
             # Update episodal variables
             t              = 1
