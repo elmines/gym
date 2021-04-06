@@ -42,3 +42,5 @@ vizdoom.ini
 # Personal scratch/debug files
 debug.py
 pong-from-pixels.py
+# Visual Studio
+.vs/
