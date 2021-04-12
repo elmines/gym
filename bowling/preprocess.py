@@ -3,7 +3,7 @@ import numpy as np
 def preprocess(observation: np.ndarray) -> np.ndarray:
     observation = trim(observation)
     observation = to_grayscale(observation)
-    observation = np.squeeze(observation.flatten())
+    observation = flatten(observation)
     return observation
 
 def trim(observation: np.ndarray) -> np.ndarray:
@@ -14,3 +14,6 @@ def to_grayscale(observation: np.ndarray) -> np.ndarray:
     observation = np.sum(observation, axis=-1) / 3
     observation = observation.astype(orig_type)
     return observation
+
+def flatten(observation: np.ndarray) -> np.ndarray:
+    return np.squeeze(observation.flatten())

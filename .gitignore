@@ -41,6 +41,7 @@ vizdoom.ini
 
 # Personal scratch/debug files
 weights/
+light.py
 debug.py
 pong-from-pixels.py
 # Visual Studio

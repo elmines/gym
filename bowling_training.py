@@ -16,6 +16,7 @@ from bowling import ACTION_NAMES, ACTION_DICT, NUM_ACTIONS
 
 def train(
     model                 : tf.keras.Model,
+    preproc_func,
     weights_load          : str             = None,
     save_dir              : str             = None,
     save_freq             : int             = None,
@@ -60,7 +61,7 @@ def train(
     finished_training                              = False
     while not finished_training:
         if render: env.render()
-        preproc_obs = preprocess(obs)
+        preproc_obs = preproc_func(obs)
         preproc_obs = tf.constant(preproc_obs)
         preproc_obs = tf.expand_dims(preproc_obs, axis=0)
         # Compute gradients for updating later
@@ -117,22 +118,3 @@ def train(
                 pass
         else:
             t += 1
-
-
-if __name__ == "__main__":
-    from bowling import zoo
-
-    # TODO: Make model saving more systematic than this
-    weights_load = None
-
-    input_shape = preprocess(gym.make("Bowling-v0").reset()).shape
-    model       = zoo.mlp(input_shape)
-    model.compile()
-    if weights_load:
-        model.load_weights(weights_load)
-    train(model,
-            render=True,
-            max_batches = 6,
-            save_freq=2,
-            gamma=0.99)
-
