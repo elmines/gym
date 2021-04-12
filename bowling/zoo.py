@@ -56,32 +56,43 @@ class ConvNet(tf.keras.Model):
 
     def __init__(self, input_shape, seed : int = 0):
         super(ConvNet, self).__init__()
+
         cur_seed : int = seed
+        layers = []
 
-        self.conv = tf.keras.layers.Conv2D(8, [3,3],
-            padding="same",
+        def add_conv(filters):
+            nonlocal cur_seed
+            nonlocal layers
+            conv = tf.keras.layers.Conv2D(filters, [3,3],
+                padding="same",
+                kernel_initializer=tf.keras.initializers.GlorotUniform(seed=cur_seed))
+            cur_seed += 1
+            nonlin = tf.keras.layers.Activation(tf.keras.activations.tanh)
+            pool = tf.keras.layers.MaxPool2D([2,2], strides=[2,2], padding="valid")
+            layers.append(conv)
+            layers.append(nonlin)
+            layers.append(pool)
+
+        add_conv(4)
+        add_conv(8)
+        add_conv(16)
+
+        layers.append( tf.keras.layers.Flatten() )
+        layers.append( tf.keras.layers.Dense(NUM_ACTIONS,
             kernel_initializer=tf.keras.initializers.GlorotUniform(seed=cur_seed))
+        )
         cur_seed += 1
 
-        self.nonlin = tf.keras.layers.Activation(tf.keras.activations.tanh)
+        layers.append( tf.keras.layers.Softmax() )
 
-        self.pool = tf.keras.layers.MaxPool2D([2,2], strides=[2,2], padding="valid")
-
-        self.flatten = tf.keras.layers.Flatten()
-
-        self.dense = tf.keras.layers.Dense(NUM_ACTIONS,
-            kernel_initializer=tf.keras.initializers.GlorotUniform(seed=cur_seed))
-        cur_seed += 1
-
-        self.softmax = tf.keras.layers.Softmax()
+        self._layers = layers
 
     def call(self, inputs, training=False):
-        x      = self.conv(inputs)
-        x      = self.nonlin(x)
-        x      = self.pool(x)
-        x      = self.flatten(x)
-        logits = self.dense(x)
-        probs  = self.softmax(logits)
-        return probs
+        x = inputs
+        for l in self._layers:
+            #print(x.shape)
+            x = l(x)
+        #print(x.shape)
+        return x
 
 __all__ = ["mlp", "ConvNet"]
