@@ -1,18 +1,25 @@
 # Python STL
 import pdb
+import time
 from typing import List, Dict, Union
+import os
 # 3rd Party
 import gym
 import numpy as np
 import tensorflow as tf
+
 from PIL import Image
 # Local
 from bowling import preprocess, to_grayscale, make_grad_buffer, discount_rewards
 from bowling import make_random_baseline, make_uniform_noise_func, select_schedule_item
 from bowling import ACTION_NAMES, ACTION_DICT, NUM_ACTIONS
 
+WEIGHTS_DIR = "weights/"
+
 def train(
     model                 : tf.keras.Model,
+    weights_load          : str             = None,
+    weights_save          : str             = None,
     max_batches           : int             = 10,
     batch_size            : int             = 1,
     lr                    : float           = 1e-2,
@@ -107,9 +114,20 @@ def train(
 
 if __name__ == "__main__":
     from bowling import zoo
+
+    # TODO: Make model saving more systematic than this
+    weights_save = None
+    weights_load = None
+
     input_shape = preprocess(gym.make("Bowling-v0").reset()).shape
     model       = zoo.mlp(input_shape)
     model.compile()
-    #model.summary()
-    train(model, render=True, max_batches = 20, gamma=0.99)
+    if weights_load:
+        model.load_weights(weights_load)
+    train(model, render=True, max_batches = 1, gamma=0.99)
+
+    if not weights_save:
+        os.makedirs(WEIGHTS_DIR, exist_ok=True)
+        weights_save = os.path.join(WEIGHTS_DIR, f"{int(time.time())}.h5")
+    model.save_weights(weights_save)
 

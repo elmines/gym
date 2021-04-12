@@ -40,7 +40,9 @@ tutorial/*.html
 vizdoom.ini
 
 # Personal scratch/debug files
+weights/
 debug.py
 pong-from-pixels.py
 # Visual Studio
 .vs/
+
