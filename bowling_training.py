@@ -14,24 +14,27 @@ from bowling import preprocess, to_grayscale, make_grad_buffer, discount_rewards
 from bowling import make_random_baseline, make_uniform_noise_func, select_schedule_item
 from bowling import ACTION_NAMES, ACTION_DICT, NUM_ACTIONS
 
-WEIGHTS_DIR = "weights/"
-
 def train(
     model                 : tf.keras.Model,
     weights_load          : str             = None,
-    weights_save          : str             = None,
+    save_dir              : str             = None,
+    save_freq             : int             = None,
     max_batches           : int             = 10,
     batch_size            : int             = 1,
     lr                    : float           = 1e-2,
     gamma                 : float           = 0.99,
     render                : bool            = False,
     seed                  : int             = 0,
-    schedule_thresholds   : List[float]     = [0.,    3., 8.],
-    lr_schedule           : List[float]     = [0.001, 0.001, 0.001],
-    max_steps_schedule    : List[int]       = [500, 500, 500],
-    noise_schedule        : List[float]     = [0.75, 0.1, 0.0],
+    schedule_thresholds   : List[float]     = [0.,    10., 15., 20.],
+    lr_schedule           : List[float]     = [0.001, 0.001, 0.001, 0.001],
+    max_steps_schedule    : List[int]       = [600, 600, 600, 600],
+    noise_schedule        : List[float]     = [0.75, 0.5, 0.25, 0.1],
     epsilon               : float           = 0.001,
     noise_func                           = None):
+
+    if not save_dir:
+        save_dir = os.path.join("weights", str(int(time.time())))
+        os.makedirs(save_dir, exist_ok=True)
 
     schedule_thresholds   = np.array(schedule_thresholds, dtype=np.float32)
     max_steps_schedule = np.array(max_steps_schedule, dtype=np.float32)
@@ -100,6 +103,10 @@ def train(
             print(f"Episode {ep_number} finished. Score = {bowling_score}")
             print(f"noise_weight={noise_weight}, max_steps={max_steps}, lr={lr}")
 
+            if save_freq and (ep_number % save_freq) == 0:
+                model.save_weights(os.path.join(save_dir, "latest.h5"))
+
+
             # Update episodal variables
             t              = 1
             ep_number     += 1
@@ -116,7 +123,6 @@ if __name__ == "__main__":
     from bowling import zoo
 
     # TODO: Make model saving more systematic than this
-    weights_save = None
     weights_load = None
 
     input_shape = preprocess(gym.make("Bowling-v0").reset()).shape
@@ -124,10 +130,9 @@ if __name__ == "__main__":
     model.compile()
     if weights_load:
         model.load_weights(weights_load)
-    train(model, render=True, max_batches = 1, gamma=0.99)
-
-    if not weights_save:
-        os.makedirs(WEIGHTS_DIR, exist_ok=True)
-        weights_save = os.path.join(WEIGHTS_DIR, f"{int(time.time())}.h5")
-    model.save_weights(weights_save)
+    train(model,
+            render=True,
+            max_batches = 6,
+            save_freq=2,
+            gamma=0.99)
 
