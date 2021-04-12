@@ -17,7 +17,7 @@ from bowling import ACTION_NAMES, ACTION_DICT, NUM_ACTIONS, NOOP
 def train(
     model                 : tf.keras.Model,
     preproc_func,
-    act_freq              : int                = 1,
+    choice_freq           : int                = 1,
     weights_load          : str                = None,
     save_dir              : str                = None,
     save_freq             : int                = None,
@@ -29,7 +29,7 @@ def train(
     seed                  : int                = 0,
     schedule_thresholds   : List[float]        = [0.,    10., 15., 20.],
     lr_schedule           : List[float]        = [0.001, 0.001, 0.001, 0.001],
-    max_actions_schedule    : List[int]          = [600, 600, 600, 600],
+    max_actions_schedule  : List[int]          = [600, 600, 600, 600],
     noise_schedule        : List[float]        = [0.75, 0.5, 0.25, 0.1],
     epsilon               : float              = 0.001,
     noise_func                                 = None):
@@ -63,15 +63,17 @@ def train(
     rew_history   : List[float]                    = []
     ep_number     : int                            = 1
     t             : int                            = 1
-    actions_done  : int                            = 0
+    choices_made  : int                            = 0
+    last_action   : int                            = NOOP
     recent_reward : int                            = 0
+    best_score    : int                            = -1
 
     obs                                            = env.reset()
     finished_training                              = False
     while not finished_training:
         if render: env.render()
 
-        if t % act_freq == 0:
+        if t % choice_freq == 0:
             preproc_obs = preproc_func(obs)
             preproc_obs = tf.constant(preproc_obs)
             preproc_obs = tf.expand_dims(preproc_obs, axis=0)
@@ -92,19 +94,20 @@ def train(
             action = ACTION_DICT[action_index]
             obs, step_reward, done, _ = env.step(action)
             recent_reward += step_reward
+            last_action = action
             # Track history for later network updates
             obs_history.append(preproc_obs)
             rew_history.append(recent_reward)
             grad_buffer.append(raw_gradient)
-            actions_done += 1
+            choices_made += 1
             recent_reward = 0
         else:
-            obs, step_reward, done, _    = env.step(NOOP)
+            obs, step_reward, done, _    = env.step(last_action)
             recent_reward += step_reward
 
         # Terminate episode
-        if done or (actions_done >= max_actions):
-            bowling_score = sum(rew_history)
+        if done or (choices_made >= max_actions):
+            bowling_score = sum(rew_history) + recent_reward
             advantages.extend(discount_rewards(rew_history, gamma=gamma))
             rew_history = []
             obs_history = []
@@ -123,12 +126,17 @@ def train(
             print(f"Episode {ep_number} finished. Score = {bowling_score}")
             print(f"noise_weight={noise_weight}, max_actions={max_actions}, lr={lr}")
 
+            # Save Latest
             if save_freq and (ep_number % save_freq) == 0:
                 model.save_weights(os.path.join(save_dir, "latest.h5"))
+            if bowling_score > best_score:
+                print("New best score!")
+                model.save_weights(os.path.join(save_dir, "best.h5"))
+                best_score = bowling_score
 
             # Update episodal variables
             t              = 1
-            actions_done   = 0
+            choices_made   = 0
             ep_number     += 1
             obs            = env.reset()
             if ep_number > batch_size*max_batches:
