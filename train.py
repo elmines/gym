@@ -17,20 +17,20 @@ from bowling import ACTION_NAMES, ACTION_DICT, NUM_ACTIONS, NOOP
 def train(
     model                 : tf.keras.Model,
     preproc_func,
-    choice_freq           : int                = 1,
-    weights_load          : str                = None,
+    weights_load          : str                = None,                         # Weight file management
     save_dir              : str                = None,
     save_freq             : int                = None,
-    clip_range            : Tuple[float,float] = (-2,2),
+    gamma                 : float              = 0.99,                         # MDP Parameters
+    choice_freq           : int                = 5,
+    clip_range            : Tuple[float,float] = (-2,2),                       # ML Parameters
     max_batches           : int                = 10,
     batch_size            : int                = 1,
-    gamma                 : float              = 0.99,
-    render                : bool               = False,
-    seed                  : int                = 0,
+    max_choices_schedule  : List[int]          = [600, 600, 600, 600],         # Scheduled Parameters
     schedule_thresholds   : List[float]        = [0.,    10., 15., 20.],
     lr_schedule           : List[float]        = [0.001, 0.001, 0.001, 0.001],
-    max_actions_schedule  : List[int]          = [600, 600, 600, 600],
     noise_schedule        : List[float]        = [0.75, 0.5, 0.25, 0.1],
+    render                : bool               = False,                        # Misc. Parameters
+    seed                  : int                = 0,
     epsilon               : float              = 0.001,
     noise_func                                 = None):
 
@@ -44,11 +44,11 @@ def train(
         clip_func = lambda t: t
 
     schedule_thresholds   = np.array(schedule_thresholds, dtype=np.float32)
-    max_actions_schedule = np.array(max_actions_schedule, dtype=np.float32)
+    max_choices_schedule = np.array(max_choices_schedule, dtype=np.float32)
     noise_schedule     = np.array(noise_schedule, dtype=np.float32)
 
     noise_weight       = select_schedule_item(0, noise_schedule, schedule_thresholds)
-    max_actions        = select_schedule_item(0, max_actions_schedule, schedule_thresholds)
+    max_choices        = select_schedule_item(0, max_choices_schedule, schedule_thresholds)
     lr                 = select_schedule_item(0, lr_schedule, schedule_thresholds)
 
     if not noise_func:
@@ -106,7 +106,7 @@ def train(
             recent_reward += step_reward
 
         # Terminate episode
-        if done or (choices_made >= max_actions):
+        if done or (choices_made >= max_choices):
             bowling_score = sum(rew_history) + recent_reward
             advantages.extend(discount_rewards(rew_history, gamma=gamma))
             rew_history = []
@@ -121,10 +121,10 @@ def train(
 
             # Update schedule variables
             noise_weight = select_schedule_item(bowling_score, noise_schedule, schedule_thresholds)
-            max_actions  = select_schedule_item(bowling_score, max_actions_schedule, schedule_thresholds)
+            max_choices  = select_schedule_item(bowling_score, max_choices_schedule, schedule_thresholds)
             lr           = select_schedule_item(bowling_score, lr_schedule, schedule_thresholds)
             print(f"Episode {ep_number} finished. Score = {bowling_score}")
-            print(f"noise_weight={noise_weight}, max_actions={max_actions}, lr={lr}")
+            print(f"noise_weight={noise_weight}, max_choices={max_choices}, lr={lr}")
 
             # Save Latest
             if save_freq and (ep_number % save_freq) == 0:
