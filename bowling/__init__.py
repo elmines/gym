@@ -13,6 +13,7 @@ NUM_ACTIONS : int = len(ACTION_NAMES)
 NOOP        : int = 0
 
 ### Routines ###
+from .evaluate   import *
 from .preprocess import *
 from .explore    import *
 from .viz        import *
