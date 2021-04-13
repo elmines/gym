@@ -96,6 +96,7 @@ def train(
                 log_prob         = tf.math.log(raw_action_prob + epsilon)
             raw_gradient = tape.gradient(log_prob, model.trainable_variables)
             raw_gradient = list(map(clip_func, raw_gradient))
+            #print(raw_gradient)
             # Take actual action
             action = ACTION_DICT[action_index]
             obs, step_reward, done, _ = env.step(action)
@@ -113,6 +114,7 @@ def train(
 
         # Terminate episode
         if done or (choices_made >= max_choices):
+            train_score = sum(rew_history) + recent_reward
             advantages.extend(discount_rewards(rew_history, gamma=gamma))
             rew_history = []
             obs_history = []
@@ -124,23 +126,22 @@ def train(
                 advantages = []
                 grad_buffer = []
 
-            bowling_score = sum(evaluate(env, model_wrapper, choice_freq, render=render_eval) for _ in range(num_eval_samples)) / num_eval_samples 
+            eval_scores = [evaluate(env, model_wrapper, choice_freq, render=render_eval) for _ in range(num_eval_samples)]
+            avg_eval_score = sum(eval_scores) / num_eval_samples 
 
             # Update schedule variables
-            noise_weight = select_schedule_item(bowling_score, noise_schedule, schedule_thresholds)
-            max_choices  = select_schedule_item(bowling_score, max_choices_schedule, schedule_thresholds)
-            lr           = select_schedule_item(bowling_score, lr_schedule, schedule_thresholds)
-            print(f"Episode {ep_number} finished")
-            print(f"Average eval score = {bowling_score}")
-            print(f"noise_weight={noise_weight}, max_choices={max_choices}, lr={lr}")
+            noise_weight = select_schedule_item(avg_eval_score, noise_schedule, schedule_thresholds)
+            max_choices  = select_schedule_item(avg_eval_score, max_choices_schedule, schedule_thresholds)
+            lr           = select_schedule_item(avg_eval_score, lr_schedule, schedule_thresholds)
+            print(f"Episode {ep_number} completed!")
+            print(f"train_score={train_score}, eval_scores={eval_scores}")
 
             # Save Latest
             if save_freq and (ep_number % save_freq) == 0:
                 model.save_weights(os.path.join(save_dir, "latest.h5"))
-            if bowling_score > best_score:
-                print("New best score!")
+            if avg_eval_score > best_score:
                 model.save_weights(os.path.join(save_dir, "best.h5"))
-                best_score = bowling_score
+                best_score = avg_eval_score
 
             # Update episodal variables
             t              = 1
