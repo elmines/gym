@@ -47,4 +47,6 @@ debug.py
 pong-from-pixels.py
 # Visual Studio
 .vs/
+# VS Code
+.vscode/
 
