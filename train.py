@@ -21,15 +21,15 @@ def train(
     weights_load          : str                = None,                         # Weight file management
     save_dir              : str                = None,
     save_freq             : int                = None,
-    gamma                 : float              = 0.99,                         # MDP Parameters
+    gamma                 : float              = 0.25,                         # MDP Parameters
     choice_freq           : int                = 5,
     clip_range            : Tuple[float,float] = (-2,2),                       # ML Parameters
     max_batches           : int                = 10,
     batch_size            : int                = 1,
-    max_choices_schedule  : List[int]          = [600, 600, 600, 600],         # Schedule Parameters
-    schedule_thresholds   : List[float]        = [0.,    10., 15., 20.],
-    lr_schedule           : List[float]        = [0.001, 0.001, 0.001, 0.001],
-    noise_schedule        : List[float]        = [0.75, 0.5, 0.25, 0.1],
+    schedule_thresholds   : List[float]        = [0., 30., 50., 100.],         # Schedule Parameters
+    max_choices_schedule  : List[int]          = 600,         
+    lr_schedule           : List[float]        = 0.0001,
+    noise_schedule        : List[float]        = 0,
     render                : bool               = False,                        # Misc. Parameters
     render_eval           : bool               = False,
     num_eval_samples      : int                = 1,
@@ -49,9 +49,15 @@ def train(
     action_rng           = np.random.default_rng(seed)
     model_wrapper        = make_model_wrapper(model, preproc_func, action_rng)
 
-    schedule_thresholds  = np.array(schedule_thresholds, dtype=np.float32)
-    max_choices_schedule = np.array(max_choices_schedule, dtype=np.float32)
-    noise_schedule       = np.array(noise_schedule, dtype=np.float32)
+    ################ Initialize Schedule Parameters #################################
+    schedule_thresholds  = np.squeeze(np.array(schedule_thresholds, dtype=np.float32))
+    def expand_if_scalar(schedule):
+        schedule = np.squeeze(np.array(schedule, dtype=np.float32))
+        if np.ndim(schedule) == 0: return np.repeat(schedule, len(schedule_thresholds))
+        return schedule
+    max_choices_schedule = expand_if_scalar(max_choices_schedule)
+    noise_schedule       = expand_if_scalar(noise_schedule)
+    lr_schedule          = expand_if_scalar(lr_schedule)
 
     noise_weight         = select_schedule_item(0, noise_schedule, schedule_thresholds)
     max_choices          = select_schedule_item(0, max_choices_schedule, schedule_thresholds)
