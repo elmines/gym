@@ -17,25 +17,27 @@ from bowling import ACTION_NAMES, ACTION_DICT, NUM_ACTIONS, NOOP
 
 def train(
     model                 : tf.keras.Model,
+    env,
     preproc_func,
-    weights_load          : str                = None,                         # Weight file management
-    save_dir              : str                = None,
-    save_freq             : int                = None,
-    gamma                 : float              = 0.25,                         # MDP Parameters
-    choice_freq           : int                = 5,
-    clip_range            : Tuple[float,float] = (-2,2),                       # ML Parameters
-    max_batches           : int                = 10,
-    batch_size            : int                = 1,
-    schedule_thresholds   : List[float]        = [0., 30., 50., 100.],         # Schedule Parameters
-    max_choices_schedule  : List[int]          = 600,         
-    lr_schedule           : List[float]        = 0.0001,
-    noise_schedule        : List[float]        = 0,
-    render                : bool               = False,                        # Misc. Parameters
-    render_eval           : bool               = False,
-    num_eval_samples      : int                = 1,
-    seed                  : int                = 0,
-    epsilon               : float              = 0.001,
-    noise_func                                 = None):
+    weights_load          : str                           = None,                         # Weight file management
+    save_dir              : str                           = None,
+    save_freq             : int                           = None,
+    gamma                 : float                         = 0.25,                         # MDP Parameters
+    choice_freq           : int                           = 5,
+    optimizer             : tf.keras.optimizers.Optimizer = None,                         # ML Parameters
+    clip_range            : Tuple[float,float]            = None,                       
+    max_batches           : int                           = 10,
+    batch_size            : int                           = 1,
+    schedule_thresholds   : List[float]                   = [0., 30., 50., 100.],         # Schedule Parameters
+    max_choices_schedule  : List[int]                     = 600,         
+    lr_schedule           : List[float]                   = 0.0001,
+    noise_schedule        : List[float]                   = 0,
+    render                : bool                          = False,                        # Misc. Parameters
+    render_eval           : bool                          = False,
+    num_eval_samples      : int                           = 1,
+    seed                  : int                           = 0,
+    epsilon               : float                         = 0.001,
+    noise_func                                            = None):
 
     if not save_dir:
         save_dir = os.path.join("weights", str(int(time.time())))
@@ -45,6 +47,10 @@ def train(
         clip_func = lambda t: tf.clip_by_value(t, *clip_range)
     else:
         clip_func = lambda t: t
+
+    if not optimizer:
+        optimizer = tf.keras.optimizers.SGD(lr=0.0001, momentum=0.)
+        #optimizer = tf.keras.optimizers.Adam(lr=0.0001)
 
     action_rng           = np.random.default_rng(seed)
     model_wrapper        = make_model_wrapper(model, preproc_func, action_rng)
@@ -66,10 +72,9 @@ def train(
     if not noise_func:
         noise_func = make_uniform_noise_func(NUM_ACTIONS)
 
-    env = gym.make("Bowling-v0")
     ################## Training Loop ######################
     advantages                                     = []
-    grad_buffer   : List[tf.Tensor]                = []
+    grad_buffer   : List[List[tf.Tensor]]          = [list() for v in model.trainable_variables]
     obs_history   : List[object]                   = []
     rew_history   : List[float]                    = []
     ep_number     : int                            = 1
@@ -111,7 +116,8 @@ def train(
             # Track history for later network updates
             obs_history.append(preproc_obs)
             rew_history.append(recent_reward)
-            grad_buffer.append(raw_gradient)
+            for (sub_list, grad) in zip(grad_buffer, raw_gradient):
+                sub_list.append(grad)
             choices_made += 1
             recent_reward = 0
         else:
@@ -124,13 +130,19 @@ def train(
             advantages.extend(discount_rewards(rew_history, gamma=gamma))
             rew_history = []
             obs_history = []
+
             # Update model parameters
             if ep_number % batch_size == 0:
-                for (adv, grad) in zip(np.array(advantages), grad_buffer):
-                    for (v, v_inc) in zip(model.trainable_variables, grad):
-                        v.assign_add(lr*adv*v_inc)
+                num_samples = len(grad_buffer[0])
+                advantages  = np.array(advantages)
+                grad_buffer = [tf.stack(sub_list) for sub_list in grad_buffer]
+                for i in range(len(grad_buffer)):
+                    reshaped_adv   = np.reshape(advantages, [len(advantages)] + [1]*(len(grad_buffer[i].shape)-1))
+                    grad_buffer[i] = tf.math.reduce_sum(reshaped_adv * grad_buffer[i], axis=0)
+                for (g, v) in zip(grad_buffer, model.trainable_variables):
+                    v.assign_add(lr*g)
                 advantages = []
-                grad_buffer = []
+                grad_buffer = [list() for v in model.trainable_variables]
 
             eval_scores = [evaluate(env, model_wrapper, choice_freq, render=render_eval) for _ in range(num_eval_samples)]
             avg_eval_score = sum(eval_scores) / num_eval_samples 

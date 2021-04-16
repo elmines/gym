@@ -73,9 +73,9 @@ class ConvNet(tf.keras.Model):
             layers.append(nonlin)
             layers.append(pool)
 
-        add_conv(4)
-        add_conv(8)
-        add_conv(16)
+        add_conv(24)
+        add_conv(48)
+        add_conv(96)
 
         layers.append( tf.keras.layers.Flatten() )
         layers.append( tf.keras.layers.Dense(NUM_ACTIONS,

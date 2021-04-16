@@ -19,6 +19,7 @@ from .explore    import *
 from .viz        import *
 from .utils      import *
 from .train      import *
+from .env        import *
 
 ### Submodules ###
 from . import zoo
