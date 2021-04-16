@@ -30,7 +30,6 @@ def train(
     batch_size            : int                           = 1,
     schedule_thresholds   : List[float]                   = [0., 30., 50., 100.],         # Schedule Parameters
     max_choices_schedule  : List[int]                     = 600,         
-    lr_schedule           : List[float]                   = 0.0001,
     noise_schedule        : List[float]                   = 0,
     render                : bool                          = False,                        # Misc. Parameters
     render_eval           : bool                          = False,
@@ -48,9 +47,7 @@ def train(
     else:
         clip_func = lambda t: t
 
-    if not optimizer:
-        optimizer = tf.keras.optimizers.SGD(0.0001, momentum=0.01)
-        #optimizer = tf.keras.optimizers.Adam(lr=0.0001)
+    if not optimizer: optimizer = tf.keras.optimizers.Adam(lr=0.0001)
 
     action_rng           = np.random.default_rng(seed)
     model_wrapper        = make_model_wrapper(model, preproc_func, action_rng)
@@ -63,11 +60,9 @@ def train(
         return schedule
     max_choices_schedule = expand_if_scalar(max_choices_schedule)
     noise_schedule       = expand_if_scalar(noise_schedule)
-    lr_schedule          = expand_if_scalar(lr_schedule)
 
     noise_weight         = select_schedule_item(0, noise_schedule, schedule_thresholds)
     max_choices          = select_schedule_item(0, max_choices_schedule, schedule_thresholds)
-    lr                   = select_schedule_item(0, lr_schedule, schedule_thresholds)
 
     if not noise_func:
         noise_func = make_uniform_noise_func(NUM_ACTIONS)
@@ -150,7 +145,6 @@ def train(
             # Update schedule variables
             noise_weight = select_schedule_item(avg_eval_score, noise_schedule, schedule_thresholds)
             max_choices  = select_schedule_item(avg_eval_score, max_choices_schedule, schedule_thresholds)
-            lr           = select_schedule_item(avg_eval_score, lr_schedule, schedule_thresholds)
             print(f"Episode {ep_number} completed!")
             print(f"train_score={train_score}, eval_scores={eval_scores}")
 
