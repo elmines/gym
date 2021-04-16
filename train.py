@@ -49,7 +49,7 @@ def train(
         clip_func = lambda t: t
 
     if not optimizer:
-        optimizer = tf.keras.optimizers.SGD(lr=0.0001, momentum=0.)
+        optimizer = tf.keras.optimizers.SGD(0.0001, momentum=0.01)
         #optimizer = tf.keras.optimizers.Adam(lr=0.0001)
 
     action_rng           = np.random.default_rng(seed)
@@ -139,8 +139,8 @@ def train(
                 for i in range(len(grad_buffer)):
                     reshaped_adv   = np.reshape(advantages, [len(advantages)] + [1]*(len(grad_buffer[i].shape)-1))
                     grad_buffer[i] = tf.math.reduce_sum(reshaped_adv * grad_buffer[i], axis=0)
-                for (g, v) in zip(grad_buffer, model.trainable_variables):
-                    v.assign_add(lr*g)
+                    grad_buffer[i] *= -1 # TF Optimizers implicitly multiply the gradients by -1, so we need to undo this
+                optimizer.apply_gradients( zip(grad_buffer, model.trainable_variables) )
                 advantages = []
                 grad_buffer = [list() for v in model.trainable_variables]
 
