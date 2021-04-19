@@ -8,7 +8,7 @@ import numpy as np
 from .preprocess import flatten, to_grayscale, trim
 from . import NUM_ACTIONS
 
-class mlp(tf.keras.Model):
+class MLP(tf.keras.Model):
 
     @staticmethod
     def preprocess(x):
@@ -60,6 +60,14 @@ class ConvNet(tf.keras.Model):
         cur_seed : int = seed
         layers = []
 
+        layers.append( tf.keras.layers.Conv2D(8, [1,1],
+                padding="same",
+                kernel_initializer=tf.keras.initializers.GlorotUniform(seed=cur_seed))
+        )
+        cur_seed += 1
+        layers.append( tf.keras.layers.Activation(tf.keras.activations.tanh) )
+                
+
         def add_conv(filters):
             nonlocal cur_seed
             nonlocal layers
@@ -95,4 +103,4 @@ class ConvNet(tf.keras.Model):
         #print(x.shape)
         return x
 
-__all__ = ["mlp", "ConvNet"]
+__all__ = ["MLP", "ConvNet"]

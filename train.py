@@ -3,6 +3,7 @@ import pdb
 import time
 from typing import List, Dict, Union, Tuple
 import os
+import json
 # 3rd Party
 import gym
 import numpy as np
@@ -33,6 +34,7 @@ def train(
     noise_schedule        : List[float]                   = 0,
     render                : bool                          = False,                        # Misc. Parameters
     render_eval           : bool                          = False,
+    verbose               : bool                          = False,
     num_eval_samples      : int                           = 1,
     seed                  : int                           = 0,
     epsilon               : float                         = 0.001,
@@ -41,6 +43,23 @@ def train(
     if not save_dir:
         save_dir = os.path.join("weights", str(int(time.time())))
         os.makedirs(save_dir, exist_ok=True)
+
+    results = {
+        "save_dir"            : save_dir,
+        "gamma"               : gamma,
+        "schedule_thresholds" : schedule_thresholds,
+        "max_choices"         : max_choices_schedule,
+        "choice_freq"         : choice_freq,
+        "optimizer"           : str(optimizer),
+        "clip_range"          : list(clip_range) if clip_range else None,
+        "max_batches"         : str(max_batches),
+        "schedule_thresholds" : schedule_thresholds,
+        "seed"                : seed,
+        "best_eval_mean"      : -1,
+        "train_scores"        : [],
+        "eval_scores"         : [],
+    }
+
 
     if clip_range:
         clip_func = lambda t: tf.clip_by_value(t, *clip_range)
@@ -145,8 +164,9 @@ def train(
             # Update schedule variables
             noise_weight = select_schedule_item(avg_eval_score, noise_schedule, schedule_thresholds)
             max_choices  = select_schedule_item(avg_eval_score, max_choices_schedule, schedule_thresholds)
-            print(f"Episode {ep_number} completed!")
-            print(f"train_score={train_score}, eval_scores={eval_scores}")
+            if verbose:
+                print(f"Episode {ep_number} completed!")
+                print(f"train_score={train_score}, eval_scores={eval_scores}")
 
             # Save Latest
             if save_freq and (ep_number % save_freq) == 0:
@@ -154,6 +174,8 @@ def train(
             if avg_eval_score > best_score:
                 model.save_weights(os.path.join(save_dir, "best.h5"))
                 best_score = avg_eval_score
+                results["best_eval_mean"] = { str(ep_number) : best_score }
+            results["eval_scores"].append(eval_scores)
 
             # Update episodal variables
             t              = 1
@@ -166,3 +188,5 @@ def train(
                 pass
         else:
             t += 1
+
+    return results
